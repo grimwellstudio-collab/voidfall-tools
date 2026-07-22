@@ -154,7 +154,6 @@ namespace Grimwell.SessionBoard
 
             var mode = new DropdownField("Sync", new List<string> { "Online relay", "Shared folder" },
                 BoardSettings.OnlineMode ? 0 : 1);
-            mode.RegisterValueChangedCallback(e => BoardSettings.OnlineMode = e.newValue == "Online relay");
             fold.Add(mode);
 
             var server = new TextField("Relay URL") { value = BoardSettings.ServerUrl };
@@ -172,6 +171,22 @@ namespace Grimwell.SessionBoard
             var folder = new TextField("Shared folder") { value = BoardSettings.SharedFolder };
             folder.RegisterValueChangedCallback(e => BoardSettings.SharedFolder = e.newValue);
             fold.Add(folder);
+
+            // only the active sync mode's fields are shown
+            void ApplyModeVisibility()
+            {
+                var online = BoardSettings.OnlineMode;
+                server.style.display = online ? DisplayStyle.Flex : DisplayStyle.None;
+                room.style.display = online ? DisplayStyle.Flex : DisplayStyle.None;
+                key.style.display = online ? DisplayStyle.Flex : DisplayStyle.None;
+                folder.style.display = online ? DisplayStyle.None : DisplayStyle.Flex;
+            }
+            mode.RegisterValueChangedCallback(e =>
+            {
+                BoardSettings.OnlineMode = e.newValue == "Online relay";
+                ApplyModeVisibility();
+            });
+            ApplyModeVisibility();
 
             var discordUrl = new TextField("Discord link") { value = BoardSettings.DiscordUrl };
             discordUrl.RegisterValueChangedCallback(e => BoardSettings.DiscordUrl = e.newValue);
