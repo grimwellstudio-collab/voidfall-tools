@@ -1,0 +1,15 @@
+{
+  "name": "com.grimwell.doctor",
+  "version": "0.1.0",
+  "displayName": "Setup Doctor",
+  "description": "One-click environment and project checker for team onboarding.",
+  "unity": "6000.3",
+  "author": {
+    "name": "Grimwell Studio"
+  },
+  "keywords": [
+    "editor",
+    "onboarding",
+    "diagnostics"
+  ]
+}

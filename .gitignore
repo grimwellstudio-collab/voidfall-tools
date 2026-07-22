@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# JetBrains / VS / VS Code
+.idea/
+.vs/
+.vscode/
+
+# Any embedded test Unity project (kept out of the tools repo)
+*/Library/
+*/Temp/
+*/Logs/
+*/obj/
+*/UserSettings/
