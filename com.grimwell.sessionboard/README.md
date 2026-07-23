@@ -2,20 +2,45 @@
 
 Team presence dashboard for the Unity editor. Open it from **Window → Grimwell → Session Board**.
 
-- **You**: set your display name and a status line ("blocking out Act I crypt"). Pick the shared folder.
-- **Team**: a card per teammate — online/away/playtesting, open scene, current selection, last seen.
-- **Activity**: live feed — came online, opened/saved scenes, started a playtest.
-- **Collision warning**: if a teammate has your open scene open too, you get a popup. Unity scenes don't merge; this exists to stop lost work.
+## Board tab
 
-## How presence syncs
+- **You**: set your display name and a status line ("blocking out Act I crypt") — both appear on your card for teammates.
+- **Team**: a card per teammate — online / playtesting / away, their status line, open scene, current selection, weekly totals, last seen. Teammates unseen for over a day drop off the list.
+- **Pieces**: appears when the project has a Session Definition (see below). One row per level piece with who has claimed it. **Claim** a piece before working on it; **Release** when done. Opening a scene someone else has claimed pops a warning.
+- **Activity**: live feed — came online, opened/saved scenes, started a playtest, claims, session joins.
+- **Popups**: corner notifications for teammate activity. Mute them in Settings; the same-scene collision warning is never muted (it prevents lost work — Unity scenes don't merge).
+- **Join Session** (header): opens the shared level — every piece from the Session Definition loaded together, so you see the whole level while owning your piece.
+- **Join Discord Call** (header): opens the link set in Settings → Discord link.
 
-Two modes (Settings foldout in the panel):
+## Insights tab
 
-- **Online relay (default):** a tiny Cloudflare worker (`backend/session-board-relay/` in this repo, deployed at `https://session-board-relay.grimwellstudio.workers.dev`). Each teammate enters the shared **Team key** (distributed privately — never commit it; it lives as the worker's `TEAM_KEY` secret, rotate with `wrangler secret put TEAM_KEY`). Room name groups a team; default `voidfall`.
-- **Shared folder:** zero-server fallback — point every teammate at the same synced folder (Dropbox/Drive/iCloud).
+Manager view of team participation. Pick 7 / 14 / 30 days:
 
-The **Join Discord Call** button opens the link set in Settings → Discord link.
+- **Totals** per member: active hours, saves, playtests, script lines.
+- **Charts** per day per member: active hours, saves, playtests, script lines touched.
+
+All of it is tracked automatically from real editor activity — heartbeats while Unity is open, scene saves/opens, play-mode entries, and code files as they're saved into the project ("script lines" is the size of files as saved, an activity signal rather than an exact diff).
+
+## Setup (each teammate, once)
+
+1. Install the package (see the repo root README).
+2. Open **Window → Grimwell → Session Board**, type your display name.
+3. Open **Settings** (bottom of the panel) and paste the **Team key** you were given privately. Room stays `voidfall` unless told otherwise.
+4. Optionally paste the team's **Discord link**.
+
+That's it — your card appears on everyone's board within seconds.
+
+## Session Definition (level pieces)
+
+Create one via **Assets → Create → Grimwell → Session Definition** and add your level's scenes as pieces (or run **Grimwell → Create Demo Session** to see a working example). The Pieces section and Join Session button light up once one exists in the project.
+
+## How syncing works
+
+Two modes (Settings):
+
+- **Online relay (default)**: a tiny Cloudflare worker (`backend/session-board-relay/` in this repo). The Team key is required; it lives as the worker's `TEAM_KEY` secret — never commit it; rotate with `wrangler secret put TEAM_KEY`.
+- **Shared folder**: zero-server fallback — point every teammate at the same synced folder (Dropbox/Drive/iCloud).
 
 ## Trying it alone
 
-Open two Unity projects with this package, give each a different display name and the same Team key (or shared folder) — the second "teammate" appears on the board.
+Open two Unity projects with this package, give each a different display name and the same Team key — the second "teammate" appears on the board.
