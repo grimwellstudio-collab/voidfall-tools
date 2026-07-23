@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -12,6 +13,7 @@ namespace Grimwell.SessionBoard
     {
         const double RefreshSeconds = 2;
         static readonly TimeSpan OnlineWindow = TimeSpan.FromSeconds(30);
+        static readonly TimeSpan HideAfter = TimeSpan.FromHours(24);
 
         static readonly Color BgColor = new Color(0.13f, 0.13f, 0.15f);
         static readonly Color CardColor = new Color(0.19f, 0.19f, 0.22f);
@@ -36,6 +38,14 @@ namespace Grimwell.SessionBoard
         Label _piecesSectionLabel;
         Label _emptyHint;
         Label _meStatsLabel;
+
+        VisualElement _boardContainer;
+        VisualElement _insightsContainer;
+        VisualElement _insightsContent;
+        Button _boardTabButton;
+        Button _insightsTabButton;
+        bool _showInsights;
+        int _historyPeriod = 14;
 
         [MenuItem("Window/Grimwell/Session Board")]
         public static void Open()
@@ -92,8 +102,34 @@ namespace Grimwell.SessionBoard
             StyleButton(discord, DiscordColor);
             headerButtons.Add(discord);
 
+            // Tab bar: Board / Insights
+            var tabBar = Row(root);
+            tabBar.style.marginBottom = 10;
+
+            _boardTabButton = new Button(() => SelectTab(true)) { text = "Board" };
+            StyleTabButton(_boardTabButton);
+            tabBar.Add(_boardTabButton);
+
+            _insightsTabButton = new Button(() => SelectTab(false)) { text = "Insights" };
+            StyleTabButton(_insightsTabButton);
+            _insightsTabButton.style.marginLeft = 6;
+            tabBar.Add(_insightsTabButton);
+
+            _boardContainer = new VisualElement();
+            root.Add(_boardContainer);
+
+            _insightsContainer = new ScrollView();
+            _insightsContainer.style.flexGrow = 1;
+            _insightsContainer.style.display = DisplayStyle.None;
+            _insightsContent = new VisualElement();
+            _insightsContainer.Add(_insightsContent);
+            root.Add(_insightsContainer);
+
+            ApplyTabStyle(_boardTabButton, true);
+            ApplyTabStyle(_insightsTabButton, false);
+
             // Me: avatar + name/status fields
-            var me = Card(root);
+            var me = Card(_boardContainer);
             var meRow = Row(me);
             meRow.style.alignItems = Align.Center;
             meRow.Add(Avatar(BoardSettings.UserName, 36));
@@ -123,7 +159,7 @@ namespace Grimwell.SessionBoard
 
             var scroll = new ScrollView();
             scroll.style.flexGrow = 1;
-            root.Add(scroll);
+            _boardContainer.Add(scroll);
 
             scroll.Add(SectionLabel("TEAM"));
             _emptyHint = new Label("No teammates online yet.");
@@ -222,6 +258,16 @@ namespace Grimwell.SessionBoard
             PresencePublisher.PublishEvent("joined " + def.sessionName);
         }
 
+        void SelectTab(bool board)
+        {
+            _showInsights = !board;
+            _boardContainer.style.display = board ? DisplayStyle.Flex : DisplayStyle.None;
+            _insightsContainer.style.display = board ? DisplayStyle.None : DisplayStyle.Flex;
+            ApplyTabStyle(_boardTabButton, board);
+            ApplyTabStyle(_insightsTabButton, !board);
+            if (!board) RebuildInsights();
+        }
+
         void Tick()
         {
             if (EditorApplication.timeSinceStartup < _nextRefresh) return;
@@ -236,6 +282,7 @@ namespace Grimwell.SessionBoard
             ToastNewActivity();
             WarnOnSceneCollisions();
             UpdateMeStats();
+            if (_showInsights) RebuildInsights();
         }
 
         void UpdateMeStats()
@@ -258,7 +305,7 @@ namespace Grimwell.SessionBoard
             if (_teamBox == null) return;
             _teamBox.Clear();
             var others = _presence
-                .Where(p => p.userName != BoardSettings.UserName)
+                .Where(p => p.userName != BoardSettings.UserName && DateTime.UtcNow - p.HeartbeatUtc < HideAfter)
                 .OrderByDescending(p => p.heartbeatUtcTicks)
                 .ToList();
             _emptyHint.style.display = others.Count == 0 ? DisplayStyle.Flex : DisplayStyle.None;
@@ -409,6 +456,161 @@ namespace Grimwell.SessionBoard
             }
         }
 
+        void RebuildInsights()
+        {
+            if (_insightsContent == null) return;
+            _insightsContent.Clear();
+
+            var periodRow = Row(_insightsContent);
+            periodRow.style.marginBottom = 10;
+            foreach (var days in new[] { 7, 14, 30 })
+            {
+                var btn = new Button(() => { _historyPeriod = days; RebuildInsights(); }) { text = days + "d" };
+                StyleTabButton(btn);
+                btn.style.paddingTop = 3;
+                btn.style.paddingBottom = 3;
+                btn.style.paddingLeft = 8;
+                btn.style.paddingRight = 8;
+                btn.style.fontSize = 11;
+                btn.style.marginRight = 6;
+                ApplyTabStyle(btn, _historyPeriod == days);
+                periodRow.Add(btn);
+            }
+
+            var history = PresencePublisher.Transport.ReadHistory(_historyPeriod);
+
+            if (history.Count == 0)
+            {
+                var empty = new Label("No activity recorded yet — history builds up as the team works.");
+                empty.style.color = TextDim;
+                empty.style.marginTop = 10;
+                _insightsContent.Add(empty);
+                return;
+            }
+
+            var totals = history.GroupBy(h => h.userName)
+                .Select(g => new
+                {
+                    userName = g.Key,
+                    minutes = g.Sum(h => h.minutes),
+                    saves = g.Sum(h => h.saves),
+                    playtests = g.Sum(h => h.playtests),
+                    scriptLines = g.Sum(h => h.scriptLines),
+                })
+                .OrderByDescending(t => t.minutes)
+                .ToList();
+            var orderedUsers = totals.Select(t => t.userName).ToList();
+
+            var today = DateTime.UtcNow.Date;
+            var dates = new List<DateTime>();
+            for (var i = _historyPeriod - 1; i >= 0; i--) dates.Add(today.AddDays(-i));
+
+            _insightsContent.Add(SectionLabel("TOTALS"));
+            foreach (var t in totals)
+            {
+                var row = Row(_insightsContent);
+                row.style.alignItems = Align.Center;
+                row.style.marginBottom = 4;
+
+                var chip = new VisualElement { style = { width = 14, height = 14, marginRight = 6, flexShrink = 0 } };
+                SetRadius(chip, 7);
+                chip.style.backgroundColor = ColorFor(t.userName);
+                row.Add(chip);
+
+                var name = new Label(t.userName);
+                name.style.unityFontStyleAndWeight = FontStyle.Bold;
+                name.style.color = TextBright;
+                name.style.marginRight = 8;
+                row.Add(name);
+
+                var stats = new Label($"{(t.minutes / 60f):0.0}h · {t.saves} saves · {t.playtests} playtests · {t.scriptLines} script lines");
+                stats.style.color = TextDim;
+                stats.style.fontSize = 10;
+                row.Add(stats);
+            }
+
+            BuildChart("ACTIVE HOURS", history, dates, orderedUsers, h => h.minutes);
+            BuildChart("SAVES", history, dates, orderedUsers, h => h.saves);
+            BuildChart("PLAYTESTS", history, dates, orderedUsers, h => h.playtests);
+            BuildChart("SCRIPT LINES", history, dates, orderedUsers, h => h.scriptLines);
+        }
+
+        void BuildChart(string title, List<HistoryEntry> history, List<DateTime> dates, List<string> orderedUsers, Func<HistoryEntry, int> metric)
+        {
+            _insightsContent.Add(SectionLabel(title));
+
+            var legend = Row(_insightsContent);
+            legend.style.flexWrap = Wrap.Wrap;
+            legend.style.marginBottom = 4;
+            foreach (var user in orderedUsers)
+            {
+                var item = Row(legend);
+                item.style.alignItems = Align.Center;
+                item.style.marginRight = 10;
+                item.style.marginBottom = 2;
+
+                var chip = new VisualElement { style = { width = 10, height = 10, marginRight = 4 } };
+                SetRadius(chip, 5);
+                chip.style.backgroundColor = ColorFor(user);
+                item.Add(chip);
+
+                var label = new Label(user);
+                label.style.color = TextDim;
+                label.style.fontSize = 9;
+                item.Add(label);
+            }
+
+            var byUserDate = history
+                .GroupBy(h => (h.userName, ParseDate(h.date)))
+                .ToDictionary(g => g.Key, g => g.Sum(metric));
+
+            var chartMax = 1;
+            foreach (var d in dates)
+                foreach (var user in orderedUsers)
+                    if (byUserDate.TryGetValue((user, d), out var v) && v > chartMax) chartMax = v;
+
+            var body = Row(_insightsContent);
+            body.style.height = 90;
+            body.style.alignItems = Align.FlexEnd;
+            body.style.marginBottom = 14;
+
+            var labelsRow = Row(_insightsContent);
+            labelsRow.style.marginBottom = 10;
+
+            for (var i = 0; i < dates.Count; i++)
+            {
+                var d = dates[i];
+                var dayGroup = Row(body);
+                dayGroup.style.flexGrow = 1;
+                dayGroup.style.alignItems = Align.FlexEnd;
+                dayGroup.style.justifyContent = Justify.Center;
+
+                for (var u = 0; u < orderedUsers.Count; u++)
+                {
+                    var user = orderedUsers[u];
+                    byUserDate.TryGetValue((user, d), out var value);
+
+                    var bar = new VisualElement { style = { flexGrow = 1, maxWidth = 10 } };
+                    bar.style.backgroundColor = ColorFor(user);
+                    bar.style.borderTopLeftRadius = 2;
+                    bar.style.borderTopRightRadius = 2;
+                    bar.style.height = value / (float)chartMax * 80f;
+                    if (u < orderedUsers.Count - 1) bar.style.marginRight = 1;
+                    dayGroup.Add(bar);
+                }
+
+                var showLabel = i == 0 || i == dates.Count - 1 || i % 7 == 0;
+                var dateLabel = new Label(showLabel ? d.Day.ToString() : "");
+                dateLabel.style.color = TextDim;
+                dateLabel.style.fontSize = 8;
+                dateLabel.style.flexGrow = 1;
+                dateLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+                labelsRow.Add(dateLabel);
+            }
+        }
+
+        static DateTime ParseDate(string s) => DateTime.Parse(s, CultureInfo.InvariantCulture).Date;
+
         void ToastNewActivity()
         {
             var muted = BoardSettings.MuteToasts;
@@ -531,6 +733,26 @@ namespace Grimwell.SessionBoard
             button.style.borderBottomWidth = 0;
             button.style.borderLeftWidth = 0;
             button.style.borderRightWidth = 0;
+        }
+
+        static void StyleTabButton(Button button)
+        {
+            button.style.unityFontStyleAndWeight = FontStyle.Bold;
+            SetRadius(button, 6);
+            button.style.paddingLeft = 12;
+            button.style.paddingRight = 12;
+            button.style.paddingTop = 5;
+            button.style.paddingBottom = 5;
+            button.style.borderTopWidth = 0;
+            button.style.borderBottomWidth = 0;
+            button.style.borderLeftWidth = 0;
+            button.style.borderRightWidth = 0;
+        }
+
+        static void ApplyTabStyle(Button button, bool active)
+        {
+            button.style.backgroundColor = active ? CardColor : new Color(0, 0, 0, 0);
+            button.style.color = active ? TextBright : TextDim;
         }
 
         static void StyleField(TextField field)

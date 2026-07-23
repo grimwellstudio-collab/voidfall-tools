@@ -2,6 +2,8 @@
 // One Durable Object per room. Auth: ?room=<name>&key=<TEAM_KEY secret>.
 
 const CLAIM_TTL_TICKS = 288e9; // 8 hours, in .NET ticks (100ns units)
+const PRESENCE_TTL_TICKS = 6048e9; // 7 days, in .NET ticks (100ns units)
+const HISTORY_MAX_DAYS = 31;
 
 export class Room {
   constructor(state) {
@@ -15,6 +17,17 @@ export class Room {
       const body = await request.json();
       if (!body || !body.userName) return new Response("bad request", { status: 400 });
       await this.state.storage.put("p:" + body.userName, body);
+      if (typeof body.dayStamp === "string" && body.dayStamp) {
+        await this.state.storage.put("d:" + body.dayStamp + ":" + body.userName, {
+          date: body.dayStamp,
+          userName: body.userName,
+          minutes: body.dayMinutes | 0,
+          saves: body.daySaves | 0,
+          playtests: body.dayPlaytests | 0,
+          scriptEdits: body.dayScriptEdits | 0,
+          scriptLines: body.dayScriptLines | 0,
+        });
+      }
       return Response.json({ ok: true });
     }
 
@@ -62,11 +75,36 @@ export class Room {
         }
       }
       if (expired) await this.state.storage.put("claims", claims);
+      const staleKeys = [];
+      for (const [key, entry] of map) {
+        if (now - entry.heartbeatUtcTicks > PRESENCE_TTL_TICKS) staleKeys.push(key);
+      }
+      for (const key of staleKeys) {
+        map.delete(key);
+        await this.state.storage.delete(key);
+      }
       return Response.json({
         presence: [...map.values()],
         events: events.slice(-50),
         claims: Object.values(claims),
       });
+    }
+
+    if (request.method === "GET" && url.pathname === "/history") {
+      let days = parseInt(url.searchParams.get("days"), 10);
+      if (!Number.isFinite(days)) days = 14;
+      days = Math.max(1, Math.min(31, days));
+      const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      const maxCutoff = new Date(Date.now() - HISTORY_MAX_DAYS * 86400000).toISOString().slice(0, 10);
+      const map = await this.state.storage.list({ prefix: "d:" });
+      const history = [];
+      const oldKeys = [];
+      for (const [key, entry] of map) {
+        if (entry.date < maxCutoff) oldKeys.push(key);
+        if (entry.date >= cutoff) history.push(entry);
+      }
+      for (const key of oldKeys) await this.state.storage.delete(key);
+      return Response.json({ history });
     }
 
     return new Response("not found", { status: 404 });

@@ -94,6 +94,14 @@ namespace Grimwell.SessionBoard
         const string StatsPlaytestsKey = "Grimwell.SessionBoard.Stats.Week.Playtests";
         static float _activeSecondsAccum;
 
+        const string StatsDayKey = "Grimwell.SessionBoard.Stats.Day";
+        const string StatsDayMinutesKey = "Grimwell.SessionBoard.Stats.Day.Minutes";
+        const string StatsDaySavesKey = "Grimwell.SessionBoard.Stats.Day.Saves";
+        const string StatsDayPlaytestsKey = "Grimwell.SessionBoard.Stats.Day.Playtests";
+        const string StatsDayScriptEditsKey = "Grimwell.SessionBoard.Stats.Day.ScriptEdits";
+        const string StatsDayScriptLinesKey = "Grimwell.SessionBoard.Stats.Day.ScriptLines";
+        static float _daySecondsAccum;
+
         static PresencePublisher()
         {
             EditorApplication.update += OnUpdate;
@@ -131,12 +139,28 @@ namespace Grimwell.SessionBoard
             if (EditorApplication.timeSinceStartup < _nextBeat) return;
             _nextBeat = EditorApplication.timeSinceStartup + HeartbeatSeconds;
             AddActiveSeconds((float)HeartbeatSeconds);
-            Transport.PublishPresence(BuildState());
+            var transport = Transport;
+            transport.PublishPresence(BuildState());
+            if (transport is SharedFolderTransport folderTransport)
+            {
+                EnsureCurrentDay();
+                folderTransport.WriteHistoryRollup(new HistoryEntry
+                {
+                    date = EditorPrefs.GetString(StatsDayKey, ""),
+                    userName = BoardSettings.UserName,
+                    minutes = EditorPrefs.GetInt(StatsDayMinutesKey, 0),
+                    saves = EditorPrefs.GetInt(StatsDaySavesKey, 0),
+                    playtests = EditorPrefs.GetInt(StatsDayPlaytestsKey, 0),
+                    scriptEdits = EditorPrefs.GetInt(StatsDayScriptEditsKey, 0),
+                    scriptLines = EditorPrefs.GetInt(StatsDayScriptLinesKey, 0),
+                });
+            }
         }
 
         static PresenceState BuildState()
         {
             EnsureCurrentWeek();
+            EnsureCurrentDay();
             return new PresenceState
             {
                 userName = BoardSettings.UserName,
@@ -149,6 +173,12 @@ namespace Grimwell.SessionBoard
                 weekMinutes = EditorPrefs.GetInt(StatsMinutesKey, 0),
                 weekSaves = EditorPrefs.GetInt(StatsSavesKey, 0),
                 weekPlaytests = EditorPrefs.GetInt(StatsPlaytestsKey, 0),
+                dayStamp = EditorPrefs.GetString(StatsDayKey, ""),
+                dayMinutes = EditorPrefs.GetInt(StatsDayMinutesKey, 0),
+                daySaves = EditorPrefs.GetInt(StatsDaySavesKey, 0),
+                dayPlaytests = EditorPrefs.GetInt(StatsDayPlaytestsKey, 0),
+                dayScriptEdits = EditorPrefs.GetInt(StatsDayScriptEditsKey, 0),
+                dayScriptLines = EditorPrefs.GetInt(StatsDayScriptLinesKey, 0),
             };
         }
 
@@ -172,19 +202,56 @@ namespace Grimwell.SessionBoard
             _activeSecondsAccum = 0;
         }
 
+        static void EnsureCurrentDay()
+        {
+            var day = DateTime.Now.ToString("yyyy-MM-dd");
+            if (EditorPrefs.GetString(StatsDayKey, "") == day) return;
+            EditorPrefs.SetString(StatsDayKey, day);
+            EditorPrefs.SetInt(StatsDayMinutesKey, 0);
+            EditorPrefs.SetInt(StatsDaySavesKey, 0);
+            EditorPrefs.SetInt(StatsDayPlaytestsKey, 0);
+            EditorPrefs.SetInt(StatsDayScriptEditsKey, 0);
+            EditorPrefs.SetInt(StatsDayScriptLinesKey, 0);
+            _daySecondsAccum = 0;
+        }
+
         static void AddActiveSeconds(float seconds)
         {
             EnsureCurrentWeek();
             _activeSecondsAccum += seconds;
-            if (_activeSecondsAccum < 60f) return;
-            var wholeMinutes = (int)(_activeSecondsAccum / 60f);
-            _activeSecondsAccum -= wholeMinutes * 60f;
-            EditorPrefs.SetInt(StatsMinutesKey, EditorPrefs.GetInt(StatsMinutesKey, 0) + wholeMinutes);
+            if (_activeSecondsAccum >= 60f)
+            {
+                var wholeMinutes = (int)(_activeSecondsAccum / 60f);
+                _activeSecondsAccum -= wholeMinutes * 60f;
+                EditorPrefs.SetInt(StatsMinutesKey, EditorPrefs.GetInt(StatsMinutesKey, 0) + wholeMinutes);
+            }
+
+            EnsureCurrentDay();
+            _daySecondsAccum += seconds;
+            if (_daySecondsAccum >= 60f)
+            {
+                var wholeMinutes = (int)(_daySecondsAccum / 60f);
+                _daySecondsAccum -= wholeMinutes * 60f;
+                EditorPrefs.SetInt(StatsDayMinutesKey, EditorPrefs.GetInt(StatsDayMinutesKey, 0) + wholeMinutes);
+            }
         }
 
         public static int WeekMinutes { get { EnsureCurrentWeek(); return EditorPrefs.GetInt(StatsMinutesKey, 0); } }
         public static int WeekSaves { get { EnsureCurrentWeek(); return EditorPrefs.GetInt(StatsSavesKey, 0); } }
         public static int WeekPlaytests { get { EnsureCurrentWeek(); return EditorPrefs.GetInt(StatsPlaytestsKey, 0); } }
+
+        public static int DayMinutes { get { EnsureCurrentDay(); return EditorPrefs.GetInt(StatsDayMinutesKey, 0); } }
+        public static int DaySaves { get { EnsureCurrentDay(); return EditorPrefs.GetInt(StatsDaySavesKey, 0); } }
+        public static int DayPlaytests { get { EnsureCurrentDay(); return EditorPrefs.GetInt(StatsDayPlaytestsKey, 0); } }
+        public static int DayScriptEdits { get { EnsureCurrentDay(); return EditorPrefs.GetInt(StatsDayScriptEditsKey, 0); } }
+        public static int DayScriptLines { get { EnsureCurrentDay(); return EditorPrefs.GetInt(StatsDayScriptLinesKey, 0); } }
+
+        public static void AddScriptEdit(int lineCount)
+        {
+            EnsureCurrentDay();
+            EditorPrefs.SetInt(StatsDayScriptEditsKey, EditorPrefs.GetInt(StatsDayScriptEditsKey, 0) + 1);
+            EditorPrefs.SetInt(StatsDayScriptLinesKey, EditorPrefs.GetInt(StatsDayScriptLinesKey, 0) + lineCount);
+        }
 
         public static void PublishEvent(string message)
         {
@@ -202,6 +269,8 @@ namespace Grimwell.SessionBoard
             {
                 EnsureCurrentWeek();
                 EditorPrefs.SetInt(StatsPlaytestsKey, EditorPrefs.GetInt(StatsPlaytestsKey, 0) + 1);
+                EnsureCurrentDay();
+                EditorPrefs.SetInt(StatsDayPlaytestsKey, EditorPrefs.GetInt(StatsDayPlaytestsKey, 0) + 1);
                 PublishEvent("started a playtest");
             }
             else if (change == PlayModeStateChange.EnteredEditMode) PublishEvent("stopped playtesting");
@@ -211,6 +280,8 @@ namespace Grimwell.SessionBoard
         {
             EnsureCurrentWeek();
             EditorPrefs.SetInt(StatsSavesKey, EditorPrefs.GetInt(StatsSavesKey, 0) + 1);
+            EnsureCurrentDay();
+            EditorPrefs.SetInt(StatsDaySavesKey, EditorPrefs.GetInt(StatsDaySavesKey, 0) + 1);
             PublishEvent($"saved {scene.name}");
         }
         static void OnSceneOpened(Scene scene, OpenSceneMode mode) => PublishEvent($"opened {scene.name}");

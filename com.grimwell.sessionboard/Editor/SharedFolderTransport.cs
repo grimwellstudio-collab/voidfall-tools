@@ -24,6 +24,7 @@ namespace Grimwell.SessionBoard
                 Directory.CreateDirectory(PresenceDir);
                 Directory.CreateDirectory(EventsDir);
                 Directory.CreateDirectory(ClaimsDir);
+                Directory.CreateDirectory(HistoryDir);
             }
             catch (IOException) { }
         }
@@ -32,6 +33,7 @@ namespace Grimwell.SessionBoard
         string PresenceDir => Path.Combine(_root, "presence");
         string EventsDir => Path.Combine(_root, "events");
         string ClaimsDir => Path.Combine(_root, "claims");
+        string HistoryDir => Path.Combine(_root, "history");
 
         static string FileSafe(string name)
         {
@@ -80,6 +82,16 @@ namespace Grimwell.SessionBoard
                 var stored = JsonUtility.FromJson<ClaimEntry>(File.ReadAllText(path));
                 if (stored != null && stored.userName == claim.userName)
                     File.Delete(path);
+            }
+            catch (IOException) { }
+        }
+
+        public void WriteHistoryRollup(HistoryEntry e)
+        {
+            try
+            {
+                var path = Path.Combine(HistoryDir, "d_" + e.date + "_" + FileSafe(e.userName) + ".json");
+                File.WriteAllText(path, JsonUtility.ToJson(e));
             }
             catch (IOException) { }
         }
@@ -148,6 +160,35 @@ namespace Grimwell.SessionBoard
                             continue;
                         }
                         result.Add(claim);
+                    }
+                    catch (Exception) { } // partial write from another machine; skip this cycle
+                }
+            }
+            catch (IOException) { }
+            return result;
+        }
+
+        public List<HistoryEntry> ReadHistory(int days)
+        {
+            var result = new List<HistoryEntry>();
+            var cutoff = DateTime.Now.AddDays(-days).ToString("yyyy-MM-dd");
+            var maxCutoff = DateTime.Now.AddDays(-31).ToString("yyyy-MM-dd");
+            try
+            {
+                if (!Directory.Exists(HistoryDir)) return result;
+                foreach (var file in Directory.GetFiles(HistoryDir, "*.json"))
+                {
+                    try
+                    {
+                        var entry = JsonUtility.FromJson<HistoryEntry>(File.ReadAllText(file));
+                        if (entry == null || string.IsNullOrEmpty(entry.date)) continue;
+                        if (string.Compare(entry.date, maxCutoff, StringComparison.Ordinal) < 0)
+                        {
+                            try { File.Delete(file); } catch (IOException) { } // expired; best-effort cleanup
+                            continue;
+                        }
+                        if (string.Compare(entry.date, cutoff, StringComparison.Ordinal) >= 0)
+                            result.Add(entry);
                     }
                     catch (Exception) { } // partial write from another machine; skip this cycle
                 }

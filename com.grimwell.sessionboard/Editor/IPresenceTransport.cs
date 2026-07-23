@@ -11,5 +11,6 @@ namespace Grimwell.SessionBoard
         void PublishClaim(ClaimEntry claim);
         void ReleaseClaim(ClaimEntry claim);
         List<ClaimEntry> ReadClaims();
+        List<HistoryEntry> ReadHistory(int days);
     }
 }
