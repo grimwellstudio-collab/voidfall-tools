@@ -30,8 +30,8 @@ For local development of the tools themselves, use a `file:` reference to a pack
 
 ## After installing
 
-1. **Setup Doctor**: Window → Grimwell → Setup Doctor — get every row green (Fix buttons handle the two project settings).
-2. **Session Board**: Window → Grimwell → Session Board — set your name, paste the Team key you were given privately. See the [Session Board guide](com.grimwell.sessionboard/README.md) for everything it does.
+1. **Setup Doctor**: Grimwell → Setup Doctor — get every row green (Fix buttons handle the two project settings).
+2. **Session Board**: Grimwell → Session Board — set your name, paste the Team key you were given privately. See the [Session Board guide](com.grimwell.sessionboard/README.md) for everything it does.
 
 ## Backend
 

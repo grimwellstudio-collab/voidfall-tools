@@ -18,7 +18,7 @@ namespace Grimwell.Doctor
 
         VisualElement _resultsBox;
 
-        [MenuItem("Window/Grimwell/Setup Doctor")]
+        [MenuItem("Grimwell/Setup Doctor")]
         public static void Open()
         {
             var window = GetWindow<DoctorWindow>("Setup Doctor");

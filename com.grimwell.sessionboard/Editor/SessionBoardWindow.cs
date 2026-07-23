@@ -52,7 +52,7 @@ namespace Grimwell.SessionBoard
         double _nextDefFind;
         readonly HashSet<string> _sessionPiecePaths = new HashSet<string>();
 
-        [MenuItem("Window/Grimwell/Session Board")]
+        [MenuItem("Grimwell/Session Board")]
         public static void Open()
         {
             var window = GetWindow<SessionBoardWindow>("Session Board");

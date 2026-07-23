@@ -1,6 +1,6 @@
 # Session Board
 
-Team presence dashboard for the Unity editor. Open it from **Window → Grimwell → Session Board**.
+Team presence dashboard for the Unity editor. Open it from **Grimwell → Session Board**.
 
 ## Board tab
 
@@ -24,7 +24,7 @@ All of it is tracked automatically from real editor activity — heartbeats whil
 ## Setup (each teammate, once)
 
 1. Install the package (see the repo root README).
-2. Open **Window → Grimwell → Session Board**, type your display name.
+2. Open **Grimwell → Session Board**, type your display name.
 3. Open **Settings** (bottom of the panel) and paste the **Team key** you were given privately. Room stays `voidfall` unless told otherwise.
 4. Optionally paste the team's **Discord link**.
 
