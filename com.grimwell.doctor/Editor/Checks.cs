@@ -28,12 +28,13 @@ namespace Grimwell.Doctor
 
         public static List<CheckResult> RunAll()
         {
+            var desktop = CheckGitHubDesktop();
             return new List<CheckResult>
             {
                 CheckUnityVersion(),
                 CheckGit(),
-                CheckGitLfs(),
-                CheckGitHubDesktop(),
+                CheckGitLfs(desktop.Status == Status.Pass),
+                desktop,
                 CheckTextSerialization(),
                 CheckVisibleMetaFiles(),
                 CheckProjectInGitRepo(),
@@ -82,7 +83,7 @@ namespace Grimwell.Doctor
             };
         }
 
-        static CheckResult CheckGitLfs()
+        static CheckResult CheckGitLfs(bool gitHubDesktopInstalled)
         {
             if (TryRunVersion("git", "lfs version", out var output) ||
                 TryRunVersion("/usr/bin/git", "lfs version", out output))
@@ -92,6 +93,18 @@ namespace Grimwell.Doctor
                     Name = "GIT LFS",
                     Status = Status.Pass,
                     Message = output.Trim()
+                };
+            }
+
+            // GitHub Desktop bundles LFS internally, so its users are covered inside
+            // the app even when the command line can't see it
+            if (gitHubDesktopInstalled)
+            {
+                return new CheckResult
+                {
+                    Name = "GIT LFS",
+                    Status = Status.Warn,
+                    Message = "Command-line Git LFS not found — GitHub Desktop handles big files inside the app; run `git lfs install` only if you use a terminal"
                 };
             }
 

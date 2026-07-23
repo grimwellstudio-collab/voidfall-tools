@@ -1,6 +1,6 @@
 {
   "name": "com.grimwell.sessionboard",
-  "version": "0.1.0",
+  "version": "0.4.1",
   "displayName": "Session Board",
   "description": "Team presence dashboard for the Unity editor: who's online, what they're editing, a live activity feed, popup notifications, and a same-scene collision warning.",
   "unity": "6000.3",

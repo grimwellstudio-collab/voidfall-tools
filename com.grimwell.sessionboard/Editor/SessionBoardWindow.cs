@@ -44,8 +44,13 @@ namespace Grimwell.SessionBoard
         VisualElement _insightsContent;
         Button _boardTabButton;
         Button _insightsTabButton;
+        Label _keyMissingBanner;
         bool _showInsights;
         int _historyPeriod = 14;
+
+        SessionDefinition _sessionDef;
+        double _nextDefFind;
+        readonly HashSet<string> _sessionPiecePaths = new HashSet<string>();
 
         [MenuItem("Window/Grimwell/Session Board")]
         public static void Open()
@@ -112,6 +117,19 @@ namespace Grimwell.SessionBoard
             StyleTabButton(_insightsTabButton);
             _insightsTabButton.style.marginLeft = 6;
             tabBar.Add(_insightsTabButton);
+
+            _keyMissingBanner = new Label("No Team key set — the board can't sync. Paste your key in Settings below.");
+            _keyMissingBanner.style.backgroundColor = new Color(0.55f, 0.35f, 0.15f);
+            _keyMissingBanner.style.color = TextBright;
+            _keyMissingBanner.style.paddingLeft = 8;
+            _keyMissingBanner.style.paddingRight = 8;
+            _keyMissingBanner.style.paddingTop = 5;
+            _keyMissingBanner.style.paddingBottom = 5;
+            _keyMissingBanner.style.marginBottom = 8;
+            _keyMissingBanner.style.whiteSpace = WhiteSpace.Normal;
+            SetRadius(_keyMissingBanner, 6);
+            root.Add(_keyMissingBanner);
+            UpdateKeyBanner();
 
             _boardContainer = new VisualElement();
             root.Add(_boardContainer);
@@ -279,7 +297,31 @@ namespace Grimwell.SessionBoard
             ToastNewActivity();
             WarnOnSceneCollisions();
             UpdateMeStats();
+            UpdateKeyBanner();
             if (_showInsights) RebuildInsights();
+        }
+
+        void UpdateKeyBanner()
+        {
+            if (_keyMissingBanner == null) return;
+            var missing = BoardSettings.OnlineMode && string.IsNullOrEmpty(BoardSettings.TeamKey);
+            _keyMissingBanner.style.display = missing ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
+        SessionDefinition CurrentSessionDefinition()
+        {
+            var now = EditorApplication.timeSinceStartup;
+            if (now >= _nextDefFind)
+            {
+                _nextDefFind = now + 30;
+                _sessionDef = SessionDefinition.FindFirst();
+                _sessionPiecePaths.Clear();
+                if (_sessionDef != null && _sessionDef.pieces != null)
+                    foreach (var piece in _sessionDef.pieces)
+                        if (piece.scene != null)
+                            _sessionPiecePaths.Add(AssetDatabase.GetAssetPath(piece.scene));
+            }
+            return _sessionDef;
         }
 
         void UpdateMeStats()
@@ -391,7 +433,7 @@ namespace Grimwell.SessionBoard
         void RebuildPieces()
         {
             if (_piecesBox == null) return;
-            var def = SessionDefinition.FindFirst();
+            var def = CurrentSessionDefinition();
             if (def == null || def.pieces == null || def.pieces.Count == 0)
             {
                 _piecesSectionLabel.style.display = DisplayStyle.None;
@@ -498,7 +540,7 @@ namespace Grimwell.SessionBoard
                 .ToList();
             var orderedUsers = totals.Select(t => t.userName).ToList();
 
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.Now.Date; // history dayStamps are local dates — columns must match
             var dates = new List<DateTime>();
             for (var i = _historyPeriod - 1; i >= 0; i--) dates.Add(today.AddDays(-i));
 
@@ -626,8 +668,13 @@ namespace Grimwell.SessionBoard
             var myScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().path;
             if (string.IsNullOrEmpty(myScene)) return;
 
+            // session pieces are expected to be co-open by everyone — claims coordinate those,
+            // so the same-scene warning only applies to scenes outside the session
+            var isSessionPiece = _sessionPiecePaths.Contains(myScene);
+
             foreach (var p in _presence)
             {
+                if (isSessionPiece) break;
                 if (p.userName == me || !IsOnline(p) || p.openScene != myScene) continue;
                 if (!_collisionsWarned.Add(p.userName + "|" + myScene)) continue;
 

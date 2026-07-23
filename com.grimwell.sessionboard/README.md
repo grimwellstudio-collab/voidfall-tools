@@ -30,6 +30,8 @@ All of it is tracked automatically from real editor activity — heartbeats whil
 
 That's it — your card appears on everyone's board within seconds.
 
+**Names must be unique**: two people using the same display name merge into one card. Pick distinct names (Discord-based sign-in is planned to make this automatic).
+
 ## Session Definition (level pieces)
 
 Create one via **Assets → Create → Grimwell → Session Definition** and add your level's scenes as pieces (or run **Grimwell → Create Demo Session** to see a working example). The Pieces section and Join Session button light up once one exists in the project.
