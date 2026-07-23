@@ -71,7 +71,6 @@ namespace Grimwell.SessionBoard
             root.style.paddingTop = 10;
             root.style.paddingBottom = 10;
 
-            // Header: title + Discord button
             var header = Row(root);
             header.style.justifyContent = Justify.SpaceBetween;
             header.style.alignItems = Align.Center;
@@ -102,7 +101,6 @@ namespace Grimwell.SessionBoard
             StyleButton(discord, DiscordColor);
             headerButtons.Add(discord);
 
-            // Tab bar: Board / Insights
             var tabBar = Row(root);
             tabBar.style.marginBottom = 10;
 
@@ -128,7 +126,6 @@ namespace Grimwell.SessionBoard
             ApplyTabStyle(_boardTabButton, true);
             ApplyTabStyle(_insightsTabButton, false);
 
-            // Me: avatar + name/status fields
             var me = Card(_boardContainer);
             var meRow = Row(me);
             meRow.style.alignItems = Align.Center;

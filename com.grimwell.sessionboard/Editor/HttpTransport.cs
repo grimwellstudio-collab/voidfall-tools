@@ -30,7 +30,7 @@ namespace Grimwell.SessionBoard
         double _nextPoll;
         int _polling; // 0/1 flag so overlapping polls never stack up
         double _nextHistoryPoll;
-        int _historyPolling; // 0/1 flag so overlapping polls never stack up
+        int _historyPolling;
 
         [Serializable]
         class StatePayload
