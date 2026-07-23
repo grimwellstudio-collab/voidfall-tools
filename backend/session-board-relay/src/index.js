@@ -62,6 +62,12 @@ export class Room {
       return Response.json({ ok: true });
     }
 
+    // wipe the whole room — presence, events, claims, history
+    if (request.method === "POST" && url.pathname === "/reset") {
+      await this.state.storage.deleteAll();
+      return Response.json({ ok: true });
+    }
+
     if (request.method === "GET" && url.pathname === "/state") {
       const map = await this.state.storage.list({ prefix: "p:" });
       const events = (await this.state.storage.get("events")) || [];
