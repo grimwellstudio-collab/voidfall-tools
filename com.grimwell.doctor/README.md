@@ -1,8 +1,8 @@
 # Setup Doctor
 
 A one-click checkup for your Unity machine and project setup. Open it from
-**Window > Grimwell > Setup Doctor**. It runs automatically when you open the
-window, and again any time you press **Run Checks**.
+**Grimwell > Setup Doctor** in the top menu bar. It runs automatically when
+you open the window, and again any time you press **Run Checks**.
 
 ## What it checks
 
